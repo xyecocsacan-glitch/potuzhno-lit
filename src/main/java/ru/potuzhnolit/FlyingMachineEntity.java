@@ -1,7 +1,8 @@
 package ru.potuzhnolit;
 
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
@@ -40,7 +41,15 @@ public class FlyingMachineEntity extends Entity {
     public void setVariant(int variant) { entityData.set(VARIANT, variant == 1 ? 1 : 0); }
     public int getVariant() { return entityData.get(VARIANT); }
     public void applyControls(int bits) { controls = bits & 127; controlsTick = tickCount; }
-    @Override protected void readAdditionalSaveData(CompoundTag tag) { setVariant(tag.getIntOr("Variant", 0)); }
+    @Override
+protected void readAdditionalSaveData(ValueInput input) {
+    setVariant(input.getIntOr("Variant", 0));
+}
+
+@Override
+protected void addAdditionalSaveData(ValueOutput output) {
+    output.putInt("Variant", getVariant());
+}
     @Override protected void addAdditionalSaveData(CompoundTag tag) { tag.putInt("Variant", getVariant()); }
     @Override public boolean isPickable() { return true; }
     @Override public boolean canCollideWith(Entity entity) { return entity.isPickable() && !hasPassenger(entity); }
@@ -49,7 +58,7 @@ public class FlyingMachineEntity extends Entity {
         return new Vec3(0, 0.38, 0);
     }
     @Override public InteractionResult interact(Player player, InteractionHand hand) {
-        if (!level().isClientSide() && getPassengers().isEmpty()) player.startRiding(this, true);
+        player.startRiding(this);
         return InteractionResult.SUCCESS;
     }
     @Override public void tick() {
