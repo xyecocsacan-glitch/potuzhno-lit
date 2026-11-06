@@ -1,0 +1,25 @@
+plugins {
+    id 'net.fabricmc.fabric-loom-remap' version '1.14.10'
+    id 'maven-publish'
+}
+version = '0.2.0'
+group = 'ru.potuzhnolit'
+base { archivesName = 'potuzhno-lit-1.21.11' }
+loom {
+    splitEnvironmentSourceSets()
+    mods {
+        potuzhnolit {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+}
+repositories { mavenCentral() }
+dependencies {
+    minecraft 'com.mojang:minecraft:1.21.11'
+    mappings loom.officialMojangMappings()
+    modImplementation 'net.fabricmc:fabric-loader:0.18.1'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.141.1+1.21.11'
+}
+tasks.withType(JavaCompile).configureEach { options.release = 21 }
+java { sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21 }
