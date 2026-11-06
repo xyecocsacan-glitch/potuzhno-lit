@@ -1,9 +1,12 @@
 package ru.potuzhnolit;
 
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -13,12 +16,10 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
-import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents;
 
 public class PotuzhnoLitMod implements ModInitializer {
     public static final String MOD_ID = "potuzhnolit";
     public static Identifier id(String path) { return Identifier.fromNamespaceAndPath(MOD_ID, path); }
-
     public static final EntityType<FlyingMachineEntity> MACHINE = Registry.register(
         BuiltInRegistries.ENTITY_TYPE, id("machine"),
         EntityType.Builder.<FlyingMachineEntity>of(FlyingMachineEntity::new, MobCategory.MISC)
@@ -36,27 +37,12 @@ public class PotuzhnoLitMod implements ModInitializer {
 
     @Override public void onInitialize() {
         PayloadTypeRegistry.playC2S().register(ControlPayload.TYPE, ControlPayload.CODEC);
-        ServerPlayNetworking.registerGlobalReceiver(ControlPayload.TYPE, (payload, context) -> {
-            context.server().execute(() -> {
-                if ((payload.flags() & 256) != 0) {
-                    if (context.player().getVehicle() instanceof FlyingMachineEntity) {
-                        context.player().stopRiding();
-                    } else {
-                        var nearby = context.player().level().getEntitiesOfClass(FlyingMachineEntity.class,
-                            context.player().getBoundingBox().inflate(3.0),
-                            machine -> machine.getPassengers().isEmpty());
-                        nearby.stream().min(java.util.Comparator.comparingDouble(
-                            machine -> machine.distanceToSqr(context.player())))
-                            .ifPresent(machine -> context.player().startRiding(machine));
-                    }
-                    return;
-                }
-                if (context.player().getVehicle() instanceof FlyingMachineEntity machine
-                    && machine.getFirstPassenger() == context.player()) {
-                    machine.applyControls(payload.flags());
-                }
-            });
-        });
+        PayloadTypeRegistry.playS2C().register(DroneViewPayload.TYPE, DroneViewPayload.CODEC);
+        ServerPlayNetworking.registerGlobalReceiver(ControlPayload.TYPE, (payload, context) ->
+            context.server().execute(() -> RemoteControl.handle(context.player(), payload)));
+        ServerTickEvents.END_SERVER_TICK.register(RemoteControl::tick);
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> RemoteControl.stop(handler.player, false));
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> RemoteControl.clear());
         ItemGroupEvents.modifyEntriesEvent(CreativeModeTabs.TOOLS_AND_UTILITIES).register(entries -> {
             entries.accept(DRONE);
             entries.accept(PLANE);

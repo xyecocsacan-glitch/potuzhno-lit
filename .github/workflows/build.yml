@@ -1,9 +1,11 @@
-
 name: Build Minecraft mod
 
 on:
   push:
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -11,23 +13,30 @@ jobs:
     steps:
       - name: Download source
         uses: actions/checkout@v4
-
       - name: Install Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.2.1'
-
-      - name: Build mod
-        run: gradle build --stacktrace
-
-      - name: Upload JAR
+      - name: Build and test mod
+        run: gradle build --console=plain
+      - name: Upload playable JAR
         uses: actions/upload-artifact@v4
         with:
           name: potuzhno-lit-1.21.11
-          path: build/libs/*.jar
+          path: |
+            build/libs/*.jar
+            !build/libs/*-sources.jar
+            !build/libs/*-dev.jar
+          if-no-files-found: error
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flight-tests
+          path: build/test-results/test/*.xml
+          if-no-files-found: ignore
