@@ -47,7 +47,7 @@ public class PotuzhnoLitMod implements ModInitializer {
                             machine -> machine.getPassengers().isEmpty());
                         nearby.stream().min(java.util.Comparator.comparingDouble(
                             machine -> machine.distanceToSqr(context.player())))
-                            .ifPresent(machine -> context.player().startRiding(machine, true));
+                            .ifPresent(machine -> context.player().startRiding(machine));
                     }
                     return;
                 }
