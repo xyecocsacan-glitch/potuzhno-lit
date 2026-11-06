@@ -60,6 +60,12 @@ public class PotuzhnoLitClient implements ClientModInitializer {
             InputConstants.Type.KEYSYM, key, KeyMapping.Category.MISC));
     }
     public static boolean remote() { return droneId >= 0; }
+    /** Hold RMB to aim without rotating the piloted plane. */
+    public static boolean aimingPlane(Minecraft client) {
+        FlyingMachineEntity machine = activeMachine(client);
+        return !remote() && machine != null && machine.getVariant() == 1
+            && client.screen == null && client.isWindowActive() && mouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
+    }
     public static int remoteTicks() { return remoteTicks; }
     public static Vec3 anchor() { return bodyAnchor; }
     public static FlyingMachineEntity activeMachine(Minecraft client) {
@@ -117,6 +123,7 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         if (held(client.options.keyJump) || key(GLFW.GLFW_KEY_UP)) flags |= FlightControls.UP;
         if (held(DOWN) || key(GLFW.GLFW_KEY_DOWN) || (remote() && held(client.options.keyShift))) flags |= FlightControls.DOWN;
         if (!remote() && (held(GUN) || key(GLFW.GLFW_KEY_R) || mouse(GLFW.GLFW_MOUSE_BUTTON_LEFT))) flags |= FlightControls.FIRE;
+        if (aimingPlane(client)) flags |= FlightControls.AIM_MODE;
         if (remote() && detonateClick) flags |= FlightControls.DETONATE;
         clear(client.options.keyAttack);
         clear(client.options.keyUse);
