@@ -1,9 +1,6 @@
 package ru.potuzhnolit;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
-import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -24,8 +21,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.EndRodBlock;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.AABB;
@@ -37,9 +32,8 @@ public class FlyingMachineEntity extends Entity {
     private static final EntityDataAccessor<Integer> VARIANT =
         SynchedEntityData.defineId(FlyingMachineEntity.class, EntityDataSerializers.INT);
     private int controls, controlsTick, armedTicks, gunCooldown;
-    private boolean rightGun, exploding;
+    private boolean rightGun, exploding, clearedLegacyDisplays;
     UUID remoteOwner;
-    private final List<Display.BlockDisplay> visualParts = new ArrayList<>();
 
     public FlyingMachineEntity(EntityType<? extends FlyingMachineEntity> type, Level level) {
         super(type, level);
@@ -80,6 +74,10 @@ public class FlyingMachineEntity extends Entity {
     @Override public void tick() {
         super.tick();
         if (level().isClientSide()) return;
+        if (!clearedLegacyDisplays || tickCount == 20) {
+            removeLegacyDisplays();
+            clearedLegacyDisplays = true;
+        }
         Entity pilot = getVariant() == 0 ? RemoteControl.pilot(this) : getFirstPassenger();
         if (pilot == null || tickCount - controlsTick > 10) controls = 0;
         if (pilot != null) {
@@ -103,12 +101,10 @@ public class FlyingMachineEntity extends Entity {
                 e -> !(e instanceof Display) && e.isPickable() && e != pilot && !hasPassenger(e), .3f);
             if (blockHit.getType() == HitResult.Type.BLOCK || entityHit != null) { detonate(); return; }
         }
-        // Let collision resolution move as far as possible. Do not zero all movement
-        // merely because a downward ray intersects the ground (the old hover/landing bug).
+        // Preserve the 0.3.0 descent fix: let collision resolution move the vehicle.
         move(MoverType.SELF, velocity);
         if (getVariant() == 0 && pilot != null && armedTicks > 5 && velocity.lengthSqr() > .03
                 && (horizontalCollision || verticalCollision)) { detonate(); return; }
-        updateVisualParts();
         if (gunCooldown > 0) gunCooldown--;
         if (getVariant() == 1 && pilot != null && (controls & FlightControls.FIRE) != 0 && gunCooldown == 0) {
             shoot(pilot);
@@ -116,39 +112,15 @@ public class FlyingMachineEntity extends Entity {
         }
     }
 
-    private void updateVisualParts() {
-        if (visualParts.isEmpty()) {
-            String tag = "potuzhnolit_part_" + getUUID();
-            // Remove only this vehicle's saved displays when it is loaded again.
-            for (Display.BlockDisplay old : level().getEntitiesOfClass(Display.BlockDisplay.class,
-                    getBoundingBox().inflate(5), e -> e.getTags().contains(tag))) old.discard();
-            int count = getVariant() == 1 ? 6 : 4;
-            for (int i = 0; i < count; i++) {
-                Display.BlockDisplay part = new Display.BlockDisplay(EntityType.BLOCK_DISPLAY, level());
-                part.setBlockState(i >= 4 ? Blocks.END_ROD.defaultBlockState().setValue(EndRodBlock.FACING, Direction.SOUTH)
-                    : i == 0 ? (getVariant() == 0 ? Blocks.TNT : Blocks.BLUE_CONCRETE).defaultBlockState()
-                    : i == 1 ? Blocks.YELLOW_CONCRETE.defaultBlockState() : Blocks.IRON_BLOCK.defaultBlockState());
-                part.addTag(tag);
-                part.setNoGravity(true);
-                part.setPos(getX(), getY(), getZ());
-                level().addFreshEntity(part);
-                visualParts.add(part);
-            }
-        }
-        double[][] offsets = {{-.55,.2,-.45},{-.55,-.25,-.45},{-.95,-.3,-.8},{-.95,-.3,.35},{-.95,.05,.8},{.45,.05,.8}};
-        double yaw = Math.toRadians(getYRot()), sin = Math.sin(yaw), cos = Math.cos(yaw);
-        for (int i = 0; i < visualParts.size(); i++) {
-            Display.BlockDisplay part = visualParts.get(i);
-            part.setPos(getX() + offsets[i][0] * cos - offsets[i][2] * sin,
-                getY() + offsets[i][1], getZ() + offsets[i][0] * sin + offsets[i][2] * cos);
-            part.setYRot(getYRot());
-        }
+    /** Migration: remove only displays tagged with THIS vehicle's UUID in 0.3.0. */
+    private void removeLegacyDisplays() {
+        String tag = "potuzhnolit_part_" + getUUID();
+        for (Display.BlockDisplay old : level().getEntitiesOfClass(Display.BlockDisplay.class,
+                getBoundingBox().inflate(5), e -> e.getTags().contains(tag))) old.discard();
     }
 
     @Override public void remove(RemovalReason reason) {
         if (!level().isClientSide()) RemoteControl.removed(this);
-        for (Display.BlockDisplay part : visualParts) part.discard();
-        visualParts.clear();
         super.remove(reason);
     }
 

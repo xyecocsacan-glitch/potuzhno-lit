@@ -12,9 +12,6 @@ import net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.entity.EntityRenderer;
-import net.minecraft.client.renderer.entity.EntityRendererProvider;
-import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
 import org.lwjgl.glfw.GLFW;
@@ -36,7 +33,7 @@ public class PotuzhnoLitClient implements ClientModInitializer {
     private static boolean wasInteract, wasDetonate, wasEffects, wasJokes;
 
     @Override public void onInitializeClient() {
-        EntityRendererRegistry.register(PotuzhnoLitMod.MACHINE, EmptyRenderer::new);
+        EntityRendererRegistry.register(PotuzhnoLitMod.MACHINE, MachineRenderer::new);
         INTERACT = binding("interact", GLFW.GLFW_KEY_E);
         DOWN = binding("down", GLFW.GLFW_KEY_X);
         GUN = binding("fire", GLFW.GLFW_KEY_R);
@@ -46,7 +43,6 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         ClientPlayNetworking.registerGlobalReceiver(DroneViewPayload.TYPE, (payload, context) ->
             context.client().execute(() -> beginView(context.client(), payload)));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> endView(client));
-        // Capture physical input before vanilla consumes inventory/attack/movement bindings.
         ClientTickEvents.START_CLIENT_TICK.register(PotuzhnoLitClient::tickStart);
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (remote() && client.player != null) freezeBody(client);
@@ -59,7 +55,6 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         return KeyBindingHelper.registerKeyBinding(new KeyMapping("key.potuzhnolit." + name,
             InputConstants.Type.KEYSYM, key, KeyMapping.Category.MISC));
     }
-
     public static boolean remote() { return droneId >= 0; }
     public static int remoteTicks() { return remoteTicks; }
     public static Vec3 anchor() { return bodyAnchor; }
@@ -84,7 +79,6 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         boolean jokesClick = jokes && !wasJokes;
         wasInteract = interact; wasDetonate = detonate; wasEffects = effects; wasJokes = jokes;
         FlyingMachineEntity machine = activeMachine(client);
-
         if (client.screen != null || !client.isWindowActive()) {
             if (remote()) { send(client, FlightControls.EXIT); endView(client); }
             else if (machine != null) send(client, 0);
@@ -140,7 +134,6 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         if (client.player != null && ClientPlayNetworking.canSend(ControlPayload.TYPE))
             ClientPlayNetworking.send(new ControlPayload(flags, client.player.getYRot(), client.player.getXRot()));
     }
-
     private static void beginView(Minecraft client, DroneViewPayload payload) {
         endView(client);
         if (payload.entityId() < 0 || client.player == null || client.level == null) return;
@@ -153,21 +146,19 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         freezeBody(client);
         suppressBodyKeys(client);
     }
-
     private static void freezeBody(Minecraft client) {
         if (bodyAnchor == null || client.player == null) return;
         client.player.setNoGravity(true);
         client.player.setDeltaMovement(Vec3.ZERO);
         client.player.setPos(bodyAnchor.x, bodyAnchor.y, bodyAnchor.z);
     }
-
     private static void updateCamera(Minecraft client, FlyingMachineEntity drone) {
         boolean firstFrame = camera == null;
         if (firstFrame) {
             camera = new FlyingMachineEntity(PotuzhnoLitMod.MACHINE, client.level);
             camera.noPhysics = true;
         }
-        // The proxy is client-only, not spawned and not a passenger. The body remains at the console.
+        // Client-only proxy; never added to the world or used as a passenger.
         camera.xo = camera.getX(); camera.yo = camera.getY(); camera.zo = camera.getZ();
         camera.yRotO = camera.getYRot(); camera.xRotO = camera.getXRot();
         float yaw = client.player.getYRot(), pitch = Math.clamp(client.player.getXRot(), -85f, 85f);
@@ -182,7 +173,6 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         client.options.setCameraType(CameraType.FIRST_PERSON);
         if (client.getCameraEntity() != camera) client.setCameraEntity(camera);
     }
-
     private static void endView(Minecraft client) {
         boolean wasRemote = remote();
         if (wasRemote && client.player != null) {
@@ -199,7 +189,6 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         remoteTicks = missingTicks = 0;
         FlightHud.resetFlight();
     }
-
     private static void suppressBodyKeys(Minecraft client) {
         clear(client.options.keyUp); clear(client.options.keyDown);
         clear(client.options.keyLeft); clear(client.options.keyRight);
@@ -226,14 +215,8 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         if (bound.getValue() < 0) return false;
         if (bound.getType() == InputConstants.Type.MOUSE) return mouse(bound.getValue());
         if (bound.getType() == InputConstants.Type.KEYSYM) return key(bound.getValue());
-        // Preserve user remaps that use a hardware scan code.
         for (int code = GLFW.GLFW_KEY_SPACE; code <= GLFW.GLFW_KEY_LAST; code++)
             if (GLFW.glfwGetKeyScancode(code) == bound.getValue()) return key(code);
         return false;
-    }
-
-    public static final class EmptyRenderer extends EntityRenderer<FlyingMachineEntity, EntityRenderState> {
-        public EmptyRenderer(EntityRendererProvider.Context context) { super(context); }
-        @Override public EntityRenderState createRenderState() { return new EntityRenderState(); }
     }
 }
