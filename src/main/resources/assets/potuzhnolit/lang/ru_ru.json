@@ -1,0 +1,8 @@
+{
+  "item.potuzhnolit.drone": "Дрон-камикадзе",
+  "item.potuzhnolit.potuzhno_lit": "Потужно Літ",
+  "entity.potuzhnolit.machine": "Летательный аппарат",
+  "key.potuzhnolit.down": "Снижение аппарата",
+  "key.potuzhnolit.gun": "Стрельба из пулемёта",
+  "key.potuzhnolit.interact": "Взаимодействовать с аппаратом (E)"
+}

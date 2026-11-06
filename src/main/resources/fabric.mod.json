@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "potuzhnolit",
+  "version": "0.2.0",
+  "name": "Потужно Літ — дрон и самолёт",
+  "description": "Управляемый дрон-камикадзе и вооружённый самолёт для Minecraft Java 1.21.11.",
+  "authors": ["Potuzhno Lit"],
+  "environment": "*",
+  "entrypoints": {
+    "main": ["ru.potuzhnolit.PotuzhnoLitMod"],
+    "client": ["ru.potuzhnolit.client.PotuzhnoLitClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "item.potuzhnolit.drone": "Kamikaze Drone",
+  "item.potuzhnolit.potuzhno_lit": "Potuzhno Lit",
+  "entity.potuzhnolit.machine": "Flying Machine",
+  "key.potuzhnolit.down": "Descend",
+  "key.potuzhnolit.gun": "Machine gun",
+  "key.potuzhnolit.interact": "Enter or leave aircraft (E)"
+}

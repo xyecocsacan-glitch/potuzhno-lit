@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "BY ",
+    "I I",
+    "III"
+  ],
+  "key": {
+    "I": "minecraft:iron_ingot",
+    "B": "minecraft:blue_dye",
+    "Y": "minecraft:yellow_dye"
+  },
+  "result": {
+    "id": "potuzhnolit:potuzhno_lit",
+    "count": 1
+  }
+}
