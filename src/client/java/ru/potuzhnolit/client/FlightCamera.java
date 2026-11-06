@@ -2,42 +2,69 @@ package ru.potuzhnolit.client;
 
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
-import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
+import ru.potuzhnolit.AimAngles;
 import ru.potuzhnolit.FlightGeometry;
 import ru.potuzhnolit.FlyingMachineEntity;
 
-/** Camera pose is sampled every rendered frame, not just on the 20 Hz client tick. */
+/** One mouse aim feeds the rendered camera, the flight packet and the server gun ray. */
 public final class FlightCamera {
     private static CameraType previousPlaneType;
+    private static FlyingMachineEntity aimMachine;
+    private static final AimAngles AIM = new AimAngles();
     private FlightCamera() { }
     public record Pose(Vec3 position, float yaw, float pitch) { }
 
-    public static void tick(Minecraft client) {
-        boolean plane = client.player != null && client.player.isAlive() && !PotuzhnoLitClient.remote()
-            && client.player.getVehicle() instanceof FlyingMachineEntity machine && machine.getVariant() == 1;
-        if (plane) {
-            if (previousPlaneType == null) previousPlaneType = client.options.getCameraType();
-            // Render the pilot and aircraft below the raised camera.
-            client.options.setCameraType(CameraType.THIRD_PERSON_BACK);
-        } else restore(client);
+    private static FlyingMachineEntity prepare(Minecraft client) {
+        FlyingMachineEntity machine = PotuzhnoLitClient.activeMachine(client);
+        if (machine == null || machine.isRemoved() || client.player == null || !client.player.isAlive()) return null;
+        if (machine != aimMachine) {
+            aimMachine = machine;
+            AIM.reset(client.player.getYRot(), client.player.getXRot());
+        }
+        return machine;
     }
 
-    public static void restore(Minecraft client) {
+    /** Called by MouseHandler after vanilla sensitivity/invert-Y processing, every frame. */
+    public static boolean turn(double horizontal, double vertical) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.screen != null || !client.isWindowActive() || prepare(client) == null) return false;
+        AIM.turn(horizontal, vertical);
+        return true;
+    }
+
+    public static float yaw(Minecraft client) {
+        return prepare(client) == null ? (client.player == null ? 0 : client.player.getYRot()) : AIM.yaw();
+    }
+    public static float pitch(Minecraft client) {
+        return prepare(client) == null ? (client.player == null ? 0 : client.player.getXRot()) : AIM.pitch();
+    }
+
+    public static void tick(Minecraft client) {
+        FlyingMachineEntity machine = prepare(client);
+        if (machine == null) { restore(client); return; }
+        if (!PotuzhnoLitClient.remote() && machine.getVariant() == 1) {
+            if (previousPlaneType == null) previousPlaneType = client.options.getCameraType();
+            client.options.setCameraType(CameraType.THIRD_PERSON_BACK);
+        } else restorePlaneType(client);
+    }
+
+    private static void restorePlaneType(Minecraft client) {
         if (previousPlaneType != null) client.options.setCameraType(previousPlaneType);
         previousPlaneType = null;
     }
+    public static void restore(Minecraft client) {
+        restorePlaneType(client);
+        aimMachine = null;
+    }
 
     public static Pose pose(Minecraft client, float partialTick) {
-        FlyingMachineEntity machine = PotuzhnoLitClient.activeMachine(client);
-        if (machine == null || machine.isRemoved() || client.player == null || !client.player.isAlive()) return null;
+        FlyingMachineEntity machine = prepare(client);
+        if (machine == null) return null;
         boolean drone = PotuzhnoLitClient.remote();
         if (!drone && (machine.getVariant() != 1 || client.getCameraEntity() != client.player)) return null;
-        float yaw = client.player.getYRot();
-        float pitch = Mth.clamp(client.player.getXRot(), -85, 85);
-        float hullYaw = Mth.rotLerp(partialTick, machine.yRotO, machine.getYRot());
-        Vec3 position = FlightGeometry.cameraPosition(machine, machine.getPosition(partialTick),
-            drone ? yaw : hullYaw, drone);
-        return new Pose(position, yaw, pitch);
+        // Orbit the raised aircraft camera with the aim, not the delayed hull angle.
+        Vec3 position = FlightGeometry.cameraPosition(machine, machine.getPosition(partialTick), AIM.yaw(), drone);
+        return new Pose(position, AIM.yaw(), AIM.pitch());
     }
 }

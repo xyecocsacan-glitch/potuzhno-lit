@@ -16,7 +16,6 @@ import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.InterpolationHandler;
-import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.ProjectileUtil;
@@ -53,7 +52,6 @@ public class FlyingMachineEntity extends Entity {
         controls = bits & FlightControls.MOVEMENT_MASK;
         controlsTick = tickCount;
         receivedControls = true;
-        // Aim stays responsive; only the visible hull/movement has turn damping.
         viewYaw = Mth.wrapDegrees(yaw);
         viewPitch = Mth.clamp(pitch, -85, 85);
     }
@@ -80,7 +78,6 @@ public class FlyingMachineEntity extends Entity {
     @Override public void tick() {
         super.tick();
         if (level().isClientSide()) {
-            // Move between received server targets rather than snapping on each packet.
             interpolation.interpolate();
             return;
         }
@@ -99,7 +96,6 @@ public class FlyingMachineEntity extends Entity {
                 FlightTuning.velocity(current.y, target.y()), FlightTuning.velocity(current.z, target.z()));
             armedTicks++;
         } else {
-            // Never coast away after disconnect, dismount, menu pause or packet timeout.
             controls = 0;
             setDeltaMovement(Vec3.ZERO);
             armedTicks = 0;
@@ -137,40 +133,29 @@ public class FlyingMachineEntity extends Entity {
         super.remove(reason);
     }
 
-    private Vec3 aimTarget(Entity pilot) {
-        Vec3 camera = FlightGeometry.cameraPosition(this, position(), getYRot(), false);
-        Vec3 end = camera.add(Vec3.directionFromRotation(viewPitch, viewYaw).scale(FlightTuning.GUN_RANGE));
-        HitResult block = level().clip(new ClipContext(camera, end,
-            ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
-        if (block.getType() == HitResult.Type.BLOCK) end = block.getLocation();
-        EntityHitResult entity = ProjectileUtil.getEntityHitResult(level(), this, camera, end,
-            new AABB(camera, end).inflate(1), e -> e instanceof LivingEntity && e != pilot && e.isAlive(), .3f);
-        return entity == null ? end : entity.getLocation();
-    }
-
     private void shoot(Entity pilot) {
         if (!(level() instanceof ServerLevel server)) return;
+        // This uses the SAME aim yaw and elevated origin as FlightCamera.pose.
+        Vec3 cameraPosition = FlightGeometry.cameraPosition(this, position(), viewYaw, false);
+        Vec3 cameraEnd = cameraPosition.add(Vec3.directionFromRotation(viewPitch, viewYaw).scale(FlightTuning.GUN_RANGE));
+        BeamTrace.Hit aimed = BeamTrace.cast(level(), this, pilot, cameraPosition, cameraEnd);
         double yaw = Math.toRadians(getYRot());
         Vec3 forward = new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
         Vec3 right = new Vec3(Math.cos(yaw), 0, Math.sin(yaw));
         rightGun = !rightGun;
-        Vec3 start = position().add(0, .7, 0).add(forward.scale(1.45)).add(right.scale(rightGun ? .65 : -.65));
-        Vec3 aim = aimTarget(pilot).subtract(start);
-        if (aim.lengthSqr() < .000001) return;
-        Vec3 end = start.add(aim.normalize().scale(Math.min(FlightTuning.GUN_RANGE, aim.length())));
-        // Check both the barrel-to-muzzle and muzzle-to-target paths: no firing through walls.
-        HitResult muzzleBlock = level().clip(new ClipContext(position().add(0, .7, 0), start,
-            ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
-        if (muzzleBlock.getType() == HitResult.Type.BLOCK) return;
-        HitResult blockHit = level().clip(new ClipContext(start, end,
-            ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
-        if (blockHit.getType() == HitResult.Type.BLOCK) end = blockHit.getLocation();
-        EntityHitResult entityHit = ProjectileUtil.getEntityHitResult(level(), this, start, end,
-            new AABB(start, end).inflate(1), e -> e instanceof LivingEntity && e != pilot && e.isAlive(), .3f);
-        if (entityHit != null) {
-            entityHit.getEntity().hurtServer(server, damageSources().generic(), 4);
-            end = entityHit.getLocation();
-            server.sendParticles(ParticleTypes.CRIT, end.x, end.y, end.z, 4, .08, .08, .08, .01);
+        Vec3 breech = position().add(0, .7, 0);
+        Vec3 start = breech.add(forward.scale(1.45)).add(right.scale(rightGun ? .65 : -.65));
+        if (level().clip(new ClipContext(breech, start, ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE, this)).getType() == HitResult.Type.BLOCK) return;
+        // Extend beyond the aim surface, then let the authoritative wall/entity ray stop the beam.
+        Vec3 intendedEnd = BeamTrace.extendThrough(start, aimed.position(), FlightTuning.GUN_RANGE);
+        BeamTrace.Hit hit = BeamTrace.cast(level(), this, pilot, start, intendedEnd);
+        Vec3 end = hit.position();
+        if (hit.target() != null) {
+            DamageSource source = pilot instanceof Player player
+                ? damageSources().playerAttack(player) : damageSources().generic();
+            if (hit.target().hurtServer(server, source, 4))
+                server.sendParticles(ParticleTypes.CRIT, end.x, end.y, end.z, 4, .08, .08, .08, .01);
         }
         playSound(SoundEvents.FIREWORK_ROCKET_BLAST, .45f, 1.8f);
         server.sendParticles(ParticleTypes.FLAME, start.x, start.y, start.z, 2, .02, .02, .02, 0);
