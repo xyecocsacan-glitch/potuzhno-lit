@@ -40,6 +40,12 @@ public class FlightRegressionTest {
         assertTrue(camera.contains("wasPlaneAiming && !aiming"));
         assertEquals(5.0f, FlightTuning.DRONE_EXPLOSION_POWER, 0);
     }
+    @Test public void strongerMachineGunKeepsServerSideDamage() throws Exception {
+        String entity = read("src/main/java/ru/potuzhnolit/FlyingMachineEntity.java");
+        assertTrue(entity.contains("hit.target().hurtServer(server, source, FlightTuning.MACHINE_GUN_DAMAGE)"));
+        assertEquals(8.0f, FlightTuning.MACHINE_GUN_DAMAGE, 0);
+        assertTrue(entity.contains("gunCooldown = 5"));
+    }
     @Test public void interpolationAndSharedAimGeometryRemainWired() throws Exception {
         String entity = read("src/main/java/ru/potuzhnolit/FlyingMachineEntity.java");
         assertTrue(entity.contains("getInterpolation()"));

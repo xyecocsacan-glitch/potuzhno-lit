@@ -6,6 +6,8 @@ public final class FlightTuning {
     public static final double PLANE_CAMERA_HEIGHT = 2.6;
     public static final double PLANE_CAMERA_BACK = 3.2;
     public static final double GUN_RANGE = 36.0;
+    /** Damage per machine-gun hit; doubled from 4 for version 0.7.1. */
+    public static final float MACHINE_GUN_DAMAGE = 8.0f;
     public static final float DRONE_EXPLOSION_POWER = 5.0f;
     private FlightTuning() { }
 
