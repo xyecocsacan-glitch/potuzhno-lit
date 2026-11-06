@@ -8,17 +8,11 @@
   "key.potuzhnolit.interact": "Пульт дрона / посадка / выход",
   "key.potuzhnolit.detonate": "Подрыв управляемого дрона",
   "key.potuzhnolit.effects": "Включить / выключить ТВ-помехи",
-  "key.potuzhnolit.jokes": "Включить / выключить смешные события",
   "message.potuzhnolit.connected": "Пульт подключён. Персонаж остаётся на месте. G — подрыв, E — выход.",
   "hud.potuzhnolit.signal": "СИГНАЛ: %s",
   "hud.potuzhnolit.distance": "Дальность: %s / %s блоков",
   "hud.potuzhnolit.range_limit": "Граница сигнала — поверни обратно",
   "hud.potuzhnolit.flight_keys": "WASD | вверх: %s | вниз: %s / ↓ | выход: %s",
-  "hud.potuzhnolit.drone_keys": "Подрыв: %s | помехи: %s | шутки: %s",
-  "hud.potuzhnolit.plane_keys": "Пулемёты: ЛКМ / %s | шутки: %s",
-  "joke.potuzhnolit.0": "Курица-диспетчер: ко-ко-курс держим!",
-  "joke.potuzhnolit.1": "Житель одобряет полёт. Скидок всё равно нет.",
-  "joke.potuzhnolit.2": "Обнаружен шерстяной сигнал. Бе-е-ез паники!",
-  "joke.potuzhnolit.3": "Бортовая корова: му-у-узыкальная пауза!",
-  "joke.potuzhnolit.4": "Автопилот ушёл за печенькой. Ты за главного!"
+  "hud.potuzhnolit.drone_keys": "Подрыв: %s | ТВ-помехи: %s",
+  "hud.potuzhnolit.plane_keys": "Пулемёты: ЛКМ / %s | камера над самолётом"
 }

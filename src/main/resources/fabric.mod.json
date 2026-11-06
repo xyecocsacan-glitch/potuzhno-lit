@@ -1,15 +1,16 @@
 {
   "schemaVersion": 1,
   "id": "potuzhnolit",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "name": "Потужно Літ — дрон и самолёт",
-  "description": "FPV-дрон и сине-жёлтый самолёт с собственными моделями, текстурами и анимацией винтов. Дистанционная камера, подрыв, пулемёты и ТВ-помехи.",
+  "description": "FPV-дрон и самолёт: плавное движение, камера над самолётом и прицельная стрельба. Без случайных событий.",
   "authors": ["Potuzhno Lit"],
   "environment": "*",
   "entrypoints": {
     "main": ["ru.potuzhnolit.PotuzhnoLitMod"],
     "client": ["ru.potuzhnolit.client.PotuzhnoLitClient"]
   },
+  "mixins": [{"config": "potuzhnolit.client.mixins.json", "environment": "client"}],
   "depends": {
     "fabricloader": ">=0.18.1",
     "minecraft": "1.21.11",

@@ -22,15 +22,15 @@ import ru.potuzhnolit.FlyingMachineEntity;
 import ru.potuzhnolit.PotuzhnoLitMod;
 
 public class PotuzhnoLitClient implements ClientModInitializer {
-    public static KeyMapping DOWN, GUN, INTERACT, DETONATE, EFFECTS, JOKES;
-    public static boolean noiseEnabled = true, jokesEnabled = true;
+    public static KeyMapping DOWN, GUN, INTERACT, DETONATE, EFFECTS;
+    public static boolean noiseEnabled = true;
     private static int droneId = -1, missingTicks, remoteTicks;
     private static FlyingMachineEntity camera;
     private static Entity previousCamera;
     private static CameraType previousCameraType;
     private static Vec3 bodyAnchor;
     private static boolean previousNoGravity;
-    private static boolean wasInteract, wasDetonate, wasEffects, wasJokes;
+    private static boolean wasInteract, wasDetonate, wasEffects;
 
     @Override public void onInitializeClient() {
         EntityRendererRegistry.register(PotuzhnoLitMod.MACHINE, MachineRenderer::new);
@@ -39,13 +39,17 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         GUN = binding("fire", GLFW.GLFW_KEY_R);
         DETONATE = binding("detonate", GLFW.GLFW_KEY_G);
         EFFECTS = binding("effects", GLFW.GLFW_KEY_V);
-        JOKES = binding("jokes", GLFW.GLFW_KEY_B);
         ClientPlayNetworking.registerGlobalReceiver(DroneViewPayload.TYPE, (payload, context) ->
             context.client().execute(() -> beginView(context.client(), payload)));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> endView(client));
         ClientTickEvents.START_CLIENT_TICK.register(PotuzhnoLitClient::tickStart);
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (remote() && client.player != null) freezeBody(client);
+            if (remote() && client.player != null) {
+                freezeBody(client);
+                FlyingMachineEntity drone = activeMachine(client);
+                if (drone != null && !drone.isRemoved()) updateCameraProxy(client, drone);
+            }
+            FlightCamera.tick(client);
         });
         HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,
             PotuzhnoLitMod.id("flight_hud"), FlightHud::render);
@@ -68,16 +72,14 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         if (client.player == null || client.level == null || client.getConnection() == null
                 || !ClientPlayNetworking.canSend(ControlPayload.TYPE)) {
             endView(client);
-            wasInteract = wasDetonate = wasEffects = wasJokes = false;
+            wasInteract = wasDetonate = wasEffects = false;
             return;
         }
-        boolean interact = held(INTERACT), detonate = held(DETONATE);
-        boolean effects = held(EFFECTS), jokes = held(JOKES);
+        boolean interact = held(INTERACT), detonate = held(DETONATE), effects = held(EFFECTS);
         boolean interactClick = interact && !wasInteract;
         boolean detonateClick = detonate && !wasDetonate;
         boolean effectsClick = effects && !wasEffects;
-        boolean jokesClick = jokes && !wasJokes;
-        wasInteract = interact; wasDetonate = detonate; wasEffects = effects; wasJokes = jokes;
+        wasInteract = interact; wasDetonate = detonate; wasEffects = effects;
         FlyingMachineEntity machine = activeMachine(client);
         if (client.screen != null || !client.isWindowActive()) {
             if (remote()) { send(client, FlightControls.EXIT); endView(client); }
@@ -105,9 +107,8 @@ public class PotuzhnoLitClient implements ClientModInitializer {
             return;
         }
         missingTicks = 0;
-        if (machine == null) { FlightHud.resetFlight(); return; }
+        if (machine == null) return;
         if (effectsClick) noiseEnabled = !noiseEnabled;
-        if (jokesClick) { jokesEnabled = !jokesEnabled; FlightHud.clearJoke(); }
         int flags = 0;
         if (held(client.options.keyUp)) flags |= FlightControls.FORWARD;
         if (held(client.options.keyDown)) flags |= FlightControls.BACK;
@@ -124,10 +125,8 @@ public class PotuzhnoLitClient implements ClientModInitializer {
             remoteTicks++;
             freezeBody(client);
             suppressBodyKeys(client);
-            updateCamera(client, machine);
         }
         send(client, flags);
-        FlightHud.tick(client);
     }
 
     private static void send(Minecraft client, int flags) {
@@ -152,22 +151,24 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         client.player.setDeltaMovement(Vec3.ZERO);
         client.player.setPos(bodyAnchor.x, bodyAnchor.y, bodyAnchor.z);
     }
-    private static void updateCamera(Minecraft client, FlyingMachineEntity drone) {
+    private static void updateCameraProxy(Minecraft client, FlyingMachineEntity drone) {
         boolean firstFrame = camera == null;
         if (firstFrame) {
             camera = new FlyingMachineEntity(PotuzhnoLitMod.MACHINE, client.level);
             camera.noPhysics = true;
         }
-        // Client-only proxy; never added to the world or used as a passenger.
-        camera.xo = camera.getX(); camera.yo = camera.getY(); camera.zo = camera.getZ();
+        // Proxy supports chunk/audio tracking; FlightCameraMixin supplies the per-frame view.
+        camera.xOld = camera.xo = camera.getX();
+        camera.yOld = camera.yo = camera.getY();
+        camera.zOld = camera.zo = camera.getZ();
         camera.yRotO = camera.getYRot(); camera.xRotO = camera.getXRot();
         float yaw = client.player.getYRot(), pitch = Math.clamp(client.player.getXRot(), -85f, 85f);
-        double angle = Math.toRadians(yaw);
-        camera.setPos(drone.getX() - Math.sin(angle) * 1.45, drone.getY() + .65,
-            drone.getZ() + Math.cos(angle) * 1.45);
+        camera.setPos(drone.getX(), drone.getY() + .65, drone.getZ());
         camera.setYRot(yaw); camera.setXRot(pitch);
         if (firstFrame) {
-            camera.xo = camera.getX(); camera.yo = camera.getY(); camera.zo = camera.getZ();
+            camera.xOld = camera.xo = camera.getX();
+            camera.yOld = camera.yo = camera.getY();
+            camera.zOld = camera.zo = camera.getZ();
             camera.yRotO = yaw; camera.xRotO = pitch;
         }
         client.options.setCameraType(CameraType.FIRST_PERSON);
@@ -184,10 +185,10 @@ public class PotuzhnoLitClient implements ClientModInitializer {
             if (previousCameraType != null) client.options.setCameraType(previousCameraType);
             suppressBodyKeys(client);
         }
+        FlightCamera.restore(client);
         droneId = -1;
         camera = null; previousCamera = null; previousCameraType = null; bodyAnchor = null;
         remoteTicks = missingTicks = 0;
-        FlightHud.resetFlight();
     }
     private static void suppressBodyKeys(Minecraft client) {
         clear(client.options.keyUp); clear(client.options.keyDown);

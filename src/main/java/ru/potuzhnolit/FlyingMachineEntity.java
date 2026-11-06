@@ -15,6 +15,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.InterpolationHandler;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.player.Player;
@@ -31,8 +32,10 @@ import net.minecraft.world.phys.Vec3;
 public class FlyingMachineEntity extends Entity {
     private static final EntityDataAccessor<Integer> VARIANT =
         SynchedEntityData.defineId(FlyingMachineEntity.class, EntityDataSerializers.INT);
+    private final InterpolationHandler interpolation = new InterpolationHandler(this, FlightTuning.INTERPOLATION_TICKS);
     private int controls, controlsTick, armedTicks, gunCooldown;
-    private boolean rightGun, exploding, clearedLegacyDisplays;
+    private float viewYaw, viewPitch;
+    private boolean receivedControls, rightGun, exploding, clearedLegacyDisplays;
     UUID remoteOwner;
 
     public FlyingMachineEntity(EntityType<? extends FlyingMachineEntity> type, Level level) {
@@ -40,6 +43,7 @@ public class FlyingMachineEntity extends Entity {
         noPhysics = false;
         setNoGravity(true);
     }
+    @Override public InterpolationHandler getInterpolation() { return interpolation; }
     @Override protected void defineSynchedData(SynchedEntityData.Builder builder) { builder.define(VARIANT, 0); }
     public void setVariant(int variant) { entityData.set(VARIANT, variant == 1 ? 1 : 0); }
     public int getVariant() { return entityData.get(VARIANT); }
@@ -48,8 +52,10 @@ public class FlyingMachineEntity extends Entity {
         if (!Float.isFinite(yaw) || !Float.isFinite(pitch)) return;
         controls = bits & FlightControls.MOVEMENT_MASK;
         controlsTick = tickCount;
-        setYRot(Mth.wrapDegrees(yaw));
-        setXRot(Mth.clamp(pitch, -85, 85));
+        receivedControls = true;
+        // Aim stays responsive; only the visible hull/movement has turn damping.
+        viewYaw = Mth.wrapDegrees(yaw);
+        viewPitch = Mth.clamp(pitch, -85, 85);
     }
     @Override protected void readAdditionalSaveData(ValueInput input) { setVariant(input.getIntOr("Variant", 0)); }
     @Override protected void addAdditionalSaveData(ValueOutput output) { output.putInt("Variant", getVariant()); }
@@ -65,7 +71,7 @@ public class FlyingMachineEntity extends Entity {
     }
     @Override protected boolean canAddPassenger(Entity entity) { return getVariant() == 1 && getPassengers().isEmpty(); }
     @Override protected Vec3 getPassengerAttachmentPoint(Entity passenger, net.minecraft.world.entity.EntityDimensions dimensions, float scaleFactor) {
-        return new Vec3(0, 0.38, 0);
+        return new Vec3(0, .38, 0);
     }
     @Override public InteractionResult interact(Player player, InteractionHand hand) {
         if (player instanceof ServerPlayer serverPlayer) RemoteControl.use(serverPlayer, this);
@@ -73,18 +79,28 @@ public class FlyingMachineEntity extends Entity {
     }
     @Override public void tick() {
         super.tick();
-        if (level().isClientSide()) return;
+        if (level().isClientSide()) {
+            // Move between received server targets rather than snapping on each packet.
+            interpolation.interpolate();
+            return;
+        }
         if (!clearedLegacyDisplays || tickCount == 20) {
             removeLegacyDisplays();
             clearedLegacyDisplays = true;
         }
         Entity pilot = getVariant() == 0 ? RemoteControl.pilot(this) : getFirstPassenger();
-        if (pilot == null || tickCount - controlsTick > 10) controls = 0;
-        if (pilot != null) {
-            FlightControls.Motion motion = FlightControls.motion(controls, getYRot(), getVariant() == 0);
-            setDeltaMovement(motion.x(), motion.y(), motion.z());
+        boolean active = pilot != null && receivedControls && tickCount - controlsTick <= 10;
+        if (active) {
+            setYRot(FlightTuning.turn(getYRot(), viewYaw));
+            setXRot(Mth.lerp(.35f, getXRot(), viewPitch));
+            FlightControls.Motion target = FlightControls.motion(controls, getYRot(), getVariant() == 0);
+            Vec3 current = getDeltaMovement();
+            setDeltaMovement(FlightTuning.velocity(current.x, target.x()),
+                FlightTuning.velocity(current.y, target.y()), FlightTuning.velocity(current.z, target.z()));
             armedTicks++;
         } else {
+            // Never coast away after disconnect, dismount, menu pause or packet timeout.
+            controls = 0;
             setDeltaMovement(Vec3.ZERO);
             armedTicks = 0;
         }
@@ -101,27 +117,35 @@ public class FlyingMachineEntity extends Entity {
                 e -> !(e instanceof Display) && e.isPickable() && e != pilot && !hasPassenger(e), .3f);
             if (blockHit.getType() == HitResult.Type.BLOCK || entityHit != null) { detonate(); return; }
         }
-        // Preserve the 0.3.0 descent fix: let collision resolution move the vehicle.
         move(MoverType.SELF, velocity);
         if (getVariant() == 0 && pilot != null && armedTicks > 5 && velocity.lengthSqr() > .03
                 && (horizontalCollision || verticalCollision)) { detonate(); return; }
         if (gunCooldown > 0) gunCooldown--;
-        if (getVariant() == 1 && pilot != null && (controls & FlightControls.FIRE) != 0 && gunCooldown == 0) {
+        if (getVariant() == 1 && active && (controls & FlightControls.FIRE) != 0 && gunCooldown == 0) {
             shoot(pilot);
             gunCooldown = 5;
         }
     }
 
-    /** Migration: remove only displays tagged with THIS vehicle's UUID in 0.3.0. */
     private void removeLegacyDisplays() {
         String tag = "potuzhnolit_part_" + getUUID();
         for (Display.BlockDisplay old : level().getEntitiesOfClass(Display.BlockDisplay.class,
                 getBoundingBox().inflate(5), e -> e.getTags().contains(tag))) old.discard();
     }
-
     @Override public void remove(RemovalReason reason) {
         if (!level().isClientSide()) RemoteControl.removed(this);
         super.remove(reason);
+    }
+
+    private Vec3 aimTarget(Entity pilot) {
+        Vec3 camera = FlightGeometry.cameraPosition(this, position(), getYRot(), false);
+        Vec3 end = camera.add(Vec3.directionFromRotation(viewPitch, viewYaw).scale(FlightTuning.GUN_RANGE));
+        HitResult block = level().clip(new ClipContext(camera, end,
+            ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
+        if (block.getType() == HitResult.Type.BLOCK) end = block.getLocation();
+        EntityHitResult entity = ProjectileUtil.getEntityHitResult(level(), this, camera, end,
+            new AABB(camera, end).inflate(1), e -> e instanceof LivingEntity && e != pilot && e.isAlive(), .3f);
+        return entity == null ? end : entity.getLocation();
     }
 
     private void shoot(Entity pilot) {
@@ -131,7 +155,13 @@ public class FlyingMachineEntity extends Entity {
         Vec3 right = new Vec3(Math.cos(yaw), 0, Math.sin(yaw));
         rightGun = !rightGun;
         Vec3 start = position().add(0, .7, 0).add(forward.scale(1.45)).add(right.scale(rightGun ? .65 : -.65));
-        Vec3 end = start.add(getLookAngle().scale(36));
+        Vec3 aim = aimTarget(pilot).subtract(start);
+        if (aim.lengthSqr() < .000001) return;
+        Vec3 end = start.add(aim.normalize().scale(Math.min(FlightTuning.GUN_RANGE, aim.length())));
+        // Check both the barrel-to-muzzle and muzzle-to-target paths: no firing through walls.
+        HitResult muzzleBlock = level().clip(new ClipContext(position().add(0, .7, 0), start,
+            ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
+        if (muzzleBlock.getType() == HitResult.Type.BLOCK) return;
         HitResult blockHit = level().clip(new ClipContext(start, end,
             ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, this));
         if (blockHit.getType() == HitResult.Type.BLOCK) end = blockHit.getLocation();
@@ -151,7 +181,6 @@ public class FlyingMachineEntity extends Entity {
             server.sendParticles(ParticleTypes.END_ROD, point.x, point.y, point.z, 1, 0, 0, 0, 0);
         }
     }
-
     public void detonate() {
         if (level().isClientSide() || isRemoved() || exploding || getVariant() != 0) return;
         exploding = true;

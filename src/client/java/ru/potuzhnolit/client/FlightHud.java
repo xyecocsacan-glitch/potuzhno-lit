@@ -1,49 +1,16 @@
 package ru.potuzhnolit.client;
 
 import java.util.Locale;
-import java.util.Random;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.network.chat.Component;
-import net.minecraft.sounds.SoundEvent;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.phys.Vec3;
 import ru.potuzhnolit.FlightControls;
 import ru.potuzhnolit.FlyingMachineEntity;
 
-/** Cosmetic HUD only: jokes and CRT grain never alter flight physics or world blocks. */
+/** Viewfinder and optional subtle CRT grain only. No random gameplay/cosmetic events. */
 public final class FlightHud {
-    private static final Random RANDOM = new Random();
-    private static int untilJoke = 300, jokeTicks, jokeId;
     private FlightHud() { }
-    public static void resetFlight() { untilJoke = 300; jokeTicks = 0; }
-    public static void clearJoke() { jokeTicks = 0; }
-
-    public static void tick(Minecraft client) {
-        if (jokeTicks > 0) jokeTicks--;
-        if (!PotuzhnoLitClient.jokesEnabled || --untilJoke > 0) return;
-        untilJoke = 600 + RANDOM.nextInt(601);
-        jokeId = RANDOM.nextInt(5);
-        jokeTicks = 100;
-        Entity camera = client.getCameraEntity();
-        if (camera == null || client.level == null) return;
-        SoundEvent sound = switch (jokeId) {
-            case 0 -> SoundEvents.CHICKEN_AMBIENT;
-            case 1 -> SoundEvents.VILLAGER_YES;
-            case 2 -> SoundEvents.SHEEP_AMBIENT;
-            case 3 -> SoundEvents.COW_AMBIENT;
-            default -> SoundEvents.EXPERIENCE_ORB_PICKUP;
-        };
-        client.level.playLocalSound(camera.getX(), camera.getY(), camera.getZ(), sound, SoundSource.PLAYERS, .22f, 1.25f, false);
-        Vec3 point = camera.getEyePosition().add(camera.getLookAngle().scale(3));
-        for (int i = 0; i < 5; i++) client.level.addParticle(ParticleTypes.NOTE,
-            point.x + (RANDOM.nextDouble() - .5), point.y - .4, point.z + (RANDOM.nextDouble() - .5),
-            RANDOM.nextDouble(), 0, 0);
-    }
 
     public static void render(GuiGraphics graphics, DeltaTracker deltaTracker) {
         Minecraft client = Minecraft.getInstance();
@@ -77,15 +44,10 @@ public final class FlightHud {
             PotuzhnoLitClient.INTERACT.getTranslatedKeyMessage()), width, height - 28, 0xFFF0F0F0);
         Component second = remote
             ? Component.translatable("hud.potuzhnolit.drone_keys", PotuzhnoLitClient.DETONATE.getTranslatedKeyMessage(),
-                PotuzhnoLitClient.EFFECTS.getTranslatedKeyMessage(), PotuzhnoLitClient.JOKES.getTranslatedKeyMessage())
-            : Component.translatable("hud.potuzhnolit.plane_keys", PotuzhnoLitClient.GUN.getTranslatedKeyMessage(),
-                PotuzhnoLitClient.JOKES.getTranslatedKeyMessage());
+                PotuzhnoLitClient.EFFECTS.getTranslatedKeyMessage())
+            : Component.translatable("hud.potuzhnolit.plane_keys", PotuzhnoLitClient.GUN.getTranslatedKeyMessage());
         centered(graphics, client, second, width, height - 15, 0xFFDADADA);
-        if (jokeTicks > 0 && PotuzhnoLitClient.jokesEnabled)
-            centered(graphics, client, Component.translatable("joke.potuzhnolit." + jokeId),
-                width, height - 52, 0xFFFFE0A0);
     }
-
     private static void centered(GuiGraphics graphics, Minecraft client, Component text, int width, int y, int color) {
         graphics.drawString(client.font, text, Math.max(4, (width - client.font.width(text)) / 2), y, color, true);
     }
@@ -101,7 +63,6 @@ public final class FlightHud {
         graphics.fill(0, 0, width, 5, 0x55000000);
         graphics.fill(0, 5, 5, height - 34, 0x55000000);
         graphics.fill(width - 5, 5, width, height - 34, 0x55000000);
-        // Four viewfinder brackets: the center of the image stays unobstructed.
         graphics.fill(margin, margin, margin + length, margin + 2, color);
         graphics.fill(margin, margin, margin + 2, margin + length, color);
         graphics.fill(width - margin - length, margin, width - margin, margin + 2, color);
@@ -112,7 +73,6 @@ public final class FlightHud {
         graphics.fill(width - margin - 2, bottom - length, width - margin, bottom, color);
     }
     private static void drawNoise(GuiGraphics graphics, int width, int height) {
-        // Low opacity, sparse grains, no full-screen flashing or camera shake.
         for (int y = 3; y < height - 34; y += 4) graphics.fill(5, y, width - 5, y + 1, 0x0A000000);
         long seed = System.nanoTime() / 160_000_000L;
         for (int i = 0; i < 24; i++) {
