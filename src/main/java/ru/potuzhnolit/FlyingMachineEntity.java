@@ -49,7 +49,7 @@ public class FlyingMachineEntity extends Entity {
     public boolean available() { return !isRemoved() && remoteOwner == null && getPassengers().isEmpty(); }
     public void applyControls(int bits, float yaw, float pitch) {
         if (!Float.isFinite(yaw) || !Float.isFinite(pitch)) return;
-        controls = bits & FlightControls.MOVEMENT_MASK;
+        controls = bits & (FlightControls.MOVEMENT_MASK | FlightControls.AIM_MODE);
         controlsTick = tickCount;
         receivedControls = true;
         viewYaw = Mth.wrapDegrees(yaw);
@@ -88,7 +88,8 @@ public class FlyingMachineEntity extends Entity {
         Entity pilot = getVariant() == 0 ? RemoteControl.pilot(this) : getFirstPassenger();
         boolean active = pilot != null && receivedControls && tickCount - controlsTick <= 10;
         if (active) {
-            setYRot(FlightTuning.turn(getYRot(), viewYaw));
+            if (!FlightControls.freeAim(controls, getVariant() == 1))
+                setYRot(FlightTuning.turn(getYRot(), viewYaw));
             setXRot(Mth.lerp(.35f, getXRot(), viewPitch));
             FlightControls.Motion target = FlightControls.motion(controls, getYRot(), getVariant() == 0);
             Vec3 current = getDeltaMovement();
@@ -170,7 +171,7 @@ public class FlyingMachineEntity extends Entity {
         if (level().isClientSide() || isRemoved() || exploding || getVariant() != 0) return;
         exploding = true;
         RemoteControl.removed(this);
-        level().explode(this, getX(), getY(), getZ(), 3, Level.ExplosionInteraction.TNT);
+        level().explode(this, getX(), getY(), getZ(), FlightTuning.DRONE_EXPLOSION_POWER, Level.ExplosionInteraction.TNT);
         discard();
     }
 }
