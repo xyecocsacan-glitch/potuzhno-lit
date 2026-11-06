@@ -25,7 +25,7 @@ public class PotuzhnoLitClient implements ClientModInitializer {
     public static KeyMapping DOWN, GUN, INTERACT, DETONATE, EFFECTS, JOKES;
     public static boolean noiseEnabled = true, jokesEnabled = true;
     private static int droneId = -1, missingTicks, remoteTicks;
-    private static FlyingMachineEntity camera;
+    private static DroneCamera camera;
     private static Entity previousCamera;
     private static CameraType previousCameraType;
     private static Vec3 bodyAnchor;
@@ -45,7 +45,12 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> endView(client));
         ClientTickEvents.START_CLIENT_TICK.register(PotuzhnoLitClient::tickStart);
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (remote() && client.player != null) freezeBody(client);
+            if (remote() && client.player != null) {
+                freezeBody(client);
+                FlyingMachineEntity drone = activeMachine(client);
+                // Sample AFTER entity interpolation, not one tick before it.
+                if (drone != null && !drone.isRemoved()) updateCamera(client, drone);
+            }
         });
         HudElementRegistry.attachElementBefore(VanillaHudElements.CHAT,
             PotuzhnoLitMod.id("flight_hud"), FlightHud::render);
@@ -124,7 +129,6 @@ public class PotuzhnoLitClient implements ClientModInitializer {
             remoteTicks++;
             freezeBody(client);
             suppressBodyKeys(client);
-            updateCamera(client, machine);
         }
         send(client, flags);
         FlightHud.tick(client);
@@ -152,27 +156,43 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         client.player.setDeltaMovement(Vec3.ZERO);
         client.player.setPos(bodyAnchor.x, bodyAnchor.y, bodyAnchor.z);
     }
+    private static Vec3 cameraPosition(Vec3 position, float yaw) {
+        double angle = Math.toRadians(yaw);
+        return position.add(-Math.sin(angle) * 1.45, .65, Math.cos(angle) * 1.45);
+    }
     private static void updateCamera(Minecraft client, FlyingMachineEntity drone) {
         boolean firstFrame = camera == null;
-        if (firstFrame) {
-            camera = new FlyingMachineEntity(PotuzhnoLitMod.MACHINE, client.level);
-            camera.noPhysics = true;
-        }
-        // Client-only proxy; never added to the world or used as a passenger.
-        camera.xo = camera.getX(); camera.yo = camera.getY(); camera.zo = camera.getZ();
-        camera.yRotO = camera.getYRot(); camera.xRotO = camera.getXRot();
+        if (firstFrame) camera = new DroneCamera(client);
+        // Use the SAME old/current positions as the rendered machine. xo/yo/zo alone
+        // are not the render interpolation history in 1.21.11: setOldPosAndRot is required.
+        Vec3 current = cameraPosition(drone.position(), drone.getYRot());
+        Vec3 previous = cameraPosition(drone.oldPosition(), drone.getYRot(0));
+        if (firstFrame || current.distanceToSqr(previous) > 64) previous = current;
         float yaw = client.player.getYRot(), pitch = Math.clamp(client.player.getXRot(), -85f, 85f);
-        double angle = Math.toRadians(yaw);
-        camera.setPos(drone.getX() - Math.sin(angle) * 1.45, drone.getY() + .65,
-            drone.getZ() + Math.cos(angle) * 1.45);
+        camera.setPos(current.x, current.y, current.z);
         camera.setYRot(yaw); camera.setXRot(pitch);
-        if (firstFrame) {
-            camera.xo = camera.getX(); camera.yo = camera.getY(); camera.zo = camera.getZ();
-            camera.yRotO = yaw; camera.xRotO = pitch;
-        }
+        camera.setOldPosAndRot(previous, client.player.yRotO, client.player.xRotO);
         client.options.setCameraType(CameraType.FIRST_PERSON);
         if (client.getCameraEntity() != camera) client.setCameraEntity(camera);
     }
+
+    /** Not spawned or ticked in the world. Mouse look remains responsive at render frame rate. */
+    private static final class DroneCamera extends FlyingMachineEntity {
+        private final Minecraft client;
+        DroneCamera(Minecraft client) {
+            super(PotuzhnoLitMod.MACHINE, client.level);
+            this.client = client;
+            noPhysics = true;
+        }
+        @Override public float getViewYRot(float partialTick) {
+            return client.player == null ? super.getViewYRot(partialTick) : client.player.getViewYRot(partialTick);
+        }
+        @Override public float getViewXRot(float partialTick) {
+            return client.player == null ? super.getViewXRot(partialTick)
+                : Math.clamp(client.player.getViewXRot(partialTick), -85f, 85f);
+        }
+    }
+
     private static void endView(Minecraft client) {
         boolean wasRemote = remote();
         if (wasRemote && client.player != null) {

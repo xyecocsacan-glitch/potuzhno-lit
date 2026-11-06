@@ -22,7 +22,8 @@ public final class MachineModel extends EntityModel<MachineRenderer.State> {
 
     @Override public void setupAnim(MachineRenderer.State state) {
         super.setupAnim(state);
-        float phase = state.ageInTicks * (state.moving ? 2.4f : .18f);
+        // Integrated on each entity; speed changes cannot reset the propeller angle.
+        float phase = state.rotorPhase;
         for (int i = 0; i < rotors.length; i++) {
             if (drone) rotors[i].yRot = phase * (i % 2 == 0 ? 1 : -1) + i * .7f;
             else rotors[i].zRot = phase;

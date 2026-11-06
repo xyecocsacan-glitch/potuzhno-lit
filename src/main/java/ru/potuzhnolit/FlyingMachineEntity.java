@@ -15,6 +15,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Display;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.InterpolationHandler;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.player.Player;
@@ -31,6 +32,11 @@ import net.minecraft.world.phys.Vec3;
 public class FlyingMachineEntity extends Entity {
     private static final EntityDataAccessor<Integer> VARIANT =
         SynchedEntityData.defineId(FlyingMachineEntity.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<Boolean> POWERED =
+        SynchedEntityData.defineId(FlyingMachineEntity.class, EntityDataSerializers.BOOLEAN);
+    private final InterpolationHandler interpolation = new InterpolationHandler(this, FlightSmoothing.INTERPOLATION_TICKS);
+    private final FlightSmoothing.Rotor rotor = new FlightSmoothing.Rotor();
+    private float visualPitch, previousVisualPitch;
     private int controls, controlsTick, armedTicks, gunCooldown;
     private boolean rightGun, exploding, clearedLegacyDisplays;
     UUID remoteOwner;
@@ -40,9 +46,18 @@ public class FlyingMachineEntity extends Entity {
         noPhysics = false;
         setNoGravity(true);
     }
-    @Override protected void defineSynchedData(SynchedEntityData.Builder builder) { builder.define(VARIANT, 0); }
+    @Override protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        builder.define(VARIANT, 0);
+        builder.define(POWERED, false);
+    }
+    // Vanilla movement packets now enter the interpolation buffer instead of snapping position.
+    @Override public InterpolationHandler getInterpolation() { return interpolation; }
     public void setVariant(int variant) { entityData.set(VARIANT, variant == 1 ? 1 : 0); }
     public int getVariant() { return entityData.get(VARIANT); }
+    public float rotorPhase(float partialTick) { return rotor.sample(partialTick); }
+    public float visualPitch(float partialTick) {
+        return Mth.lerp(FlightSmoothing.partial(partialTick), previousVisualPitch, visualPitch);
+    }
     public boolean available() { return !isRemoved() && remoteOwner == null && getPassengers().isEmpty(); }
     public void applyControls(int bits, float yaw, float pitch) {
         if (!Float.isFinite(yaw) || !Float.isFinite(pitch)) return;
@@ -73,21 +88,34 @@ public class FlyingMachineEntity extends Entity {
     }
     @Override public void tick() {
         super.tick();
-        if (level().isClientSide()) return;
+        if (level().isClientSide()) {
+            interpolation.interpolate();
+            boolean moving = position().distanceToSqr(oldPosition()) > .00001;
+            rotor.tick(entityData.get(POWERED) || isVehicle() || moving);
+            previousVisualPitch = visualPitch;
+            float targetPitch = moving ? Mth.clamp(getXRot(), -10, 10) : 0;
+            visualPitch += (targetPitch - visualPitch) * .35f;
+            return;
+        }
         if (!clearedLegacyDisplays || tickCount == 20) {
             removeLegacyDisplays();
             clearedLegacyDisplays = true;
         }
         Entity pilot = getVariant() == 0 ? RemoteControl.pilot(this) : getFirstPassenger();
-        if (pilot == null || tickCount - controlsTick > 10) controls = 0;
-        if (pilot != null) {
-            FlightControls.Motion motion = FlightControls.motion(controls, getYRot(), getVariant() == 0);
+        boolean freshControls = pilot != null && tickCount - controlsTick <= 10;
+        entityData.set(POWERED, pilot != null);
+        if (!freshControls) controls = 0;
+        if (freshControls) {
+            FlightControls.Motion target = FlightControls.motion(controls, getYRot(), getVariant() == 0);
+            Vec3 current = getDeltaMovement();
+            FlightControls.Motion motion = FlightSmoothing.accelerate(
+                new FlightControls.Motion(current.x, current.y, current.z), target, getVariant() == 0);
             setDeltaMovement(motion.x(), motion.y(), motion.z());
-            armedTicks++;
         } else {
+            // Losing the pilot or control heartbeat is a hard safety stop, not a coasting command.
             setDeltaMovement(Vec3.ZERO);
-            armedTicks = 0;
         }
+        if (pilot != null) armedTicks++; else armedTicks = 0;
         if (getVariant() == 0 && pilot != null && !RemoteControl.withinSignal(this, position().add(getDeltaMovement()))) {
             setDeltaMovement(Vec3.ZERO);
         }
@@ -101,7 +129,7 @@ public class FlyingMachineEntity extends Entity {
                 e -> !(e instanceof Display) && e.isPickable() && e != pilot && !hasPassenger(e), .3f);
             if (blockHit.getType() == HitResult.Type.BLOCK || entityHit != null) { detonate(); return; }
         }
-        // Preserve the 0.3.0 descent fix: let collision resolution move the vehicle.
+        // The server still resolves blocks, landing and explosions. The client only interpolates.
         move(MoverType.SELF, velocity);
         if (getVariant() == 0 && pilot != null && armedTicks > 5 && velocity.lengthSqr() > .03
                 && (horizontalCollision || verticalCollision)) { detonate(); return; }

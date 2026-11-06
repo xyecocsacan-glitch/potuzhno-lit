@@ -26,24 +26,20 @@ public final class MachineRenderer extends EntityRenderer<FlyingMachineEntity, M
     }
     public static final class State extends EntityRenderState {
         public int variant;
-        public float yaw, pitch;
-        public boolean moving;
+        public float yaw, pitch, rotorPhase;
     }
     @Override public State createRenderState() { return new State(); }
     @Override public void extractRenderState(FlyingMachineEntity entity, State state, float partialTick) {
         super.extractRenderState(entity, state, partialTick);
         state.variant = entity.getVariant();
         state.yaw = Mth.rotLerp(partialTick, entity.yRotO, entity.getYRot());
-        state.pitch = Mth.lerp(partialTick, entity.xRotO, entity.getXRot());
-        double dx = entity.getX() - entity.xo, dy = entity.getY() - entity.yo, dz = entity.getZ() - entity.zo;
-        state.moving = dx * dx + dy * dy + dz * dz > .0001 || entity.isVehicle();
+        state.pitch = entity.visualPitch(partialTick);
+        state.rotorPhase = entity.rotorPhase(partialTick);
     }
     @Override public void submit(State state, PoseStack poses, SubmitNodeCollector collector, CameraRenderState camera) {
         poses.pushPose();
         poses.mulPose(Axis.YP.rotationDegrees(-state.yaw));
-        if (state.variant == 0 && state.moving)
-            poses.mulPose(Axis.XP.rotationDegrees(Mth.clamp(state.pitch, -10, 10)));
-        // Model coordinates have negative Y upward; local +Z is the nose.
+        if (state.variant == 0) poses.mulPose(Axis.XP.rotationDegrees(state.pitch));
         poses.scale(-1, -1, 1);
         MachineModel model = state.variant == 0 ? drone : plane;
         Identifier texture = state.variant == 0 ? DRONE : PLANE;
