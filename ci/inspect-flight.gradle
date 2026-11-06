@@ -1,0 +1,24 @@
+allprojects {
+    afterEvaluate { p ->
+        tasks.register('inspectFlightApi') {
+            dependsOn tasks.named('compileClientJava')
+            doLast {
+                def cp = sourceSets.client.compileClasspath.asPath
+                def dir = layout.buildDirectory.dir('flight-api').get().asFile
+                dir.mkdirs()
+                def classes = ['net.minecraft.client.MouseHandler', 'net.minecraft.client.Options', 'net.minecraft.client.renderer.GameRenderer', 'net.minecraft.client.multiplayer.ClientChunkCache', 'net.minecraft.server.level.ServerChunkCache', 'net.minecraft.server.level.TicketType', 'net.minecraft.server.level.Ticket', 'net.minecraft.server.level.TicketStorage', 'net.minecraft.network.protocol.game.ClientboundLevelChunkWithLightPacket', 'net.minecraft.server.level.ServerEntity', 'net.minecraft.server.level.ServerPlayer', 'net.minecraft.world.entity.projectile.ProjectileUtil']
+                classes.each { name ->
+                    def out = new File(dir, name.tokenize('.').last() + '.txt')
+                    def cmd = [new File(System.getProperty('java.home'), 'bin/javap').path, '-p', '-classpath', cp, name]
+                    def proc = new ProcessBuilder(cmd).redirectErrorStream(true).redirectOutput(out).start()
+                    proc.waitFor()
+                }
+                ['net.minecraft.client.MouseHandler', 'net.minecraft.world.entity.projectile.ProjectileUtil'].each { name ->
+                    def out = new File(dir, name.tokenize('.').last() + '-bytecode.txt')
+                    def proc = new ProcessBuilder(new File(System.getProperty('java.home'), 'bin/javap').path, '-p', '-c', '-classpath', cp, name).redirectErrorStream(true).redirectOutput(out).start()
+                    proc.waitFor()
+                }
+            }
+        }
+    }
+}
