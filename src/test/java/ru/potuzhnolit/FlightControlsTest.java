@@ -28,6 +28,24 @@ public class FlightControlsTest {
         assertEquals(0, value.z(), 1e-9);
         assertTrue(value.y() < 0);
     }
+    @Test public void aAndDStrafeCorrectlyAtTwoHeadings() {
+        for (boolean drone : new boolean[]{true, false}) {
+            double speed = drone ? .7 : .42;
+            assertEquals(speed, FlightControls.motion(FlightControls.LEFT, 0, drone).x(), 1e-9);
+            assertEquals(-speed, FlightControls.motion(FlightControls.RIGHT, 0, drone).x(), 1e-9);
+            assertEquals(speed, FlightControls.motion(FlightControls.LEFT, 90, drone).z(), 1e-9);
+            assertEquals(-speed, FlightControls.motion(FlightControls.RIGHT, 90, drone).z(), 1e-9);
+        }
+    }
+    @Test public void holdingRmbAimsOnlyThePlaneWithoutChangingMotion() {
+        assertTrue(FlightControls.freeAim(FlightControls.AIM_MODE, true));
+        assertFalse(FlightControls.freeAim(FlightControls.AIM_MODE, false));
+        assertFalse(FlightControls.freeAim(0, true));
+        for (int bits : new int[]{0, FlightControls.FORWARD, FlightControls.RIGHT | FlightControls.UP}) {
+            assertEquals(FlightControls.motion(bits, 45, false),
+                FlightControls.motion(bits | FlightControls.AIM_MODE, 45, false));
+        }
+    }
     @Test public void detonationNeedsAuthorizedDrone() {
         assertTrue(FlightControls.mayDetonate(FlightControls.DETONATE, true, true));
         assertFalse(FlightControls.mayDetonate(FlightControls.DETONATE, false, true));
