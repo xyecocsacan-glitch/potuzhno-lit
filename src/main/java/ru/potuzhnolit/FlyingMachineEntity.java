@@ -155,7 +155,7 @@ public class FlyingMachineEntity extends Entity {
         if (hit.target() != null) {
             DamageSource source = pilot instanceof Player player
                 ? damageSources().playerAttack(player) : damageSources().generic();
-            if (hit.target().hurtServer(server, source, 4))
+            if (hit.target().hurtServer(server, source, FlightTuning.MACHINE_GUN_DAMAGE))
                 server.sendParticles(ParticleTypes.CRIT, end.x, end.y, end.z, 4, .08, .08, .08, .01);
         }
         playSound(SoundEvents.FIREWORK_ROCKET_BLAST, .45f, 1.8f);

@@ -21,7 +21,8 @@ public class FpvWiringTest {
         String server = read("src/main/java/ru/potuzhnolit/FlyingMachineEntity.java");
         assertTrue(server.contains("FlightGeometry.cameraPosition(this, position(), viewYaw, false)"));
         assertTrue(server.contains("BeamTrace.extendThrough"));
-        assertTrue(server.contains("hit.target().hurtServer(server, source, 4)"));
+        assertTrue(server.contains("hit.target().hurtServer(server, source, FlightTuning.MACHINE_GUN_DAMAGE)"));
+        assertEquals(8.0f, FlightTuning.MACHINE_GUN_DAMAGE, 0);
     }
     @Test public void leavingVehiclesRestoresVanillaMouseControl() throws Exception {
         String mouse = read("src/client/java/ru/potuzhnolit/client/mixin/FlightMouseMixin.java");
