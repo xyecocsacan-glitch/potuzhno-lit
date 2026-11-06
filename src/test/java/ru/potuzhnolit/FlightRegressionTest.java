@@ -29,6 +29,17 @@ public class FlightRegressionTest {
             assertFalse(text.contains("key.potuzhnolit.jokes"));
         }
     }
+    @Test public void freeAimAndExplosionAreWired() throws Exception {
+        String client = read("src/client/java/ru/potuzhnolit/client/PotuzhnoLitClient.java");
+        String entity = read("src/main/java/ru/potuzhnolit/FlyingMachineEntity.java");
+        String camera = read("src/client/java/ru/potuzhnolit/client/FlightCamera.java");
+        assertTrue(client.contains("mouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT)"));
+        assertTrue(client.contains("flags |= FlightControls.AIM_MODE"));
+        assertTrue(entity.contains("FlightControls.freeAim(controls, getVariant() == 1)"));
+        assertTrue(entity.contains("FlightTuning.DRONE_EXPLOSION_POWER"));
+        assertTrue(camera.contains("wasPlaneAiming && !aiming"));
+        assertEquals(5.0f, FlightTuning.DRONE_EXPLOSION_POWER, 0);
+    }
     @Test public void interpolationAndSharedAimGeometryRemainWired() throws Exception {
         String entity = read("src/main/java/ru/potuzhnolit/FlyingMachineEntity.java");
         assertTrue(entity.contains("getInterpolation()"));
