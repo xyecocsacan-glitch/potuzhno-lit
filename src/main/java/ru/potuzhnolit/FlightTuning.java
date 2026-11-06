@@ -6,6 +6,7 @@ public final class FlightTuning {
     public static final double PLANE_CAMERA_HEIGHT = 2.6;
     public static final double PLANE_CAMERA_BACK = 3.2;
     public static final double GUN_RANGE = 36.0;
+    public static final float DRONE_EXPLOSION_POWER = 5.0f;
     private FlightTuning() { }
 
     public static double velocity(double current, double target) {

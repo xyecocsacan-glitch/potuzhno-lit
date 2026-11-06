@@ -12,6 +12,7 @@ public final class FlightCamera {
     private static CameraType previousPlaneType;
     private static FlyingMachineEntity aimMachine;
     private static final AimAngles AIM = new AimAngles();
+    private static boolean wasPlaneAiming;
     private FlightCamera() { }
     public record Pose(Vec3 position, float yaw, float pitch) { }
 
@@ -21,7 +22,13 @@ public final class FlightCamera {
         if (machine != aimMachine) {
             aimMachine = machine;
             AIM.reset(client.player.getYRot(), client.player.getXRot());
+            wasPlaneAiming = false;
         }
+        if (machine.getVariant() == 1 && !PotuzhnoLitClient.remote()) {
+            boolean aiming = PotuzhnoLitClient.aimingPlane(client);
+            if (wasPlaneAiming && !aiming) AIM.reset(machine.getYRot(), AIM.pitch());
+            wasPlaneAiming = aiming;
+        } else wasPlaneAiming = false;
         return machine;
     }
 
@@ -56,6 +63,7 @@ public final class FlightCamera {
     public static void restore(Minecraft client) {
         restorePlaneType(client);
         aimMachine = null;
+        wasPlaneAiming = false;
     }
 
     public static Pose pose(Minecraft client, float partialTick) {

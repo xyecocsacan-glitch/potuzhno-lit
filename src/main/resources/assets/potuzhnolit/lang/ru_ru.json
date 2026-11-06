@@ -14,5 +14,6 @@
   "hud.potuzhnolit.range_limit": "Граница сигнала — поверни обратно",
   "hud.potuzhnolit.flight_keys": "WASD | вверх: %s | вниз: %s / ↓ | выход: %s",
   "hud.potuzhnolit.drone_keys": "Подрыв: %s | ТВ-помехи: %s",
-  "hud.potuzhnolit.plane_keys": "Пулемёты: ЛКМ / %s | камера над самолётом"
+  "hud.potuzhnolit.plane_keys": "Прицел: удерживать ПКМ | пулемёты: ЛКМ / %s",
+  "hud.potuzhnolit.aim_active": "СВОБОДНЫЙ ПРИЦЕЛ"
 }
