@@ -58,7 +58,7 @@ public class FlyingMachineEntity extends Entity {
 
     @Override
     public boolean hurtServer(ServerLevel server, DamageSource source, float amount) {
-        if (isRemoved() || amount <= 0.0f || isInvulnerableTo(server, source)) {
+        if (isRemoved() || amount <= 0.0f || isInvulnerableToBase(source)) {
             return false;
         }
         discard();
