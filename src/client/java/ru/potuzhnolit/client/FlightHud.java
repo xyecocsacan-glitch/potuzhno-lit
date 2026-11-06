@@ -38,6 +38,9 @@ public final class FlightHud {
                 Component.translatable("hud.potuzhnolit.range_limit"), width, 62, 0xFFFFC080);
         }
         drawCrosshair(graphics, width / 2, height / 2);
+        if (!remote && PotuzhnoLitClient.aimingPlane(client))
+            centered(graphics, client, Component.translatable("hud.potuzhnolit.aim_active"),
+                width, height / 2 + 22, 0xFFFFC080);
         graphics.fill(0, height - 34, width, height, 0x88000000);
         centered(graphics, client, Component.translatable("hud.potuzhnolit.flight_keys",
             client.options.keyJump.getTranslatedKeyMessage(), PotuzhnoLitClient.DOWN.getTranslatedKeyMessage(),
