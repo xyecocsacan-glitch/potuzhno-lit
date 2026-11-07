@@ -14,5 +14,6 @@
   "hud.potuzhnolit.range_limit": "Signal limit - turn back",
   "hud.potuzhnolit.flight_keys": "WASD | up: %s | down: %s / Down arrow | exit: %s",
   "hud.potuzhnolit.drone_keys": "Detonate: %s | CRT: %s",
-  "hud.potuzhnolit.plane_keys": "Guns: LMB / %s | raised aircraft camera"
+  "hud.potuzhnolit.plane_keys": "Hold RMB to aim | guns: LMB / %s",
+  "hud.potuzhnolit.aim_active": "FREE AIM"
 }

@@ -60,6 +60,12 @@ public class PotuzhnoLitClient implements ClientModInitializer {
             InputConstants.Type.KEYSYM, key, KeyMapping.Category.MISC));
     }
     public static boolean remote() { return droneId >= 0; }
+    /** Hold RMB to aim without rotating the piloted plane. */
+    public static boolean aimingPlane(Minecraft client) {
+        FlyingMachineEntity machine = activeMachine(client);
+        return !remote() && machine != null && machine.getVariant() == 1
+            && client.screen == null && client.isWindowActive() && mouse(GLFW.GLFW_MOUSE_BUTTON_RIGHT);
+    }
     public static int remoteTicks() { return remoteTicks; }
     public static Vec3 anchor() { return bodyAnchor; }
     public static FlyingMachineEntity activeMachine(Minecraft client) {
@@ -117,6 +123,7 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         if (held(client.options.keyJump) || key(GLFW.GLFW_KEY_UP)) flags |= FlightControls.UP;
         if (held(DOWN) || key(GLFW.GLFW_KEY_DOWN) || (remote() && held(client.options.keyShift))) flags |= FlightControls.DOWN;
         if (!remote() && (held(GUN) || key(GLFW.GLFW_KEY_R) || mouse(GLFW.GLFW_MOUSE_BUTTON_LEFT))) flags |= FlightControls.FIRE;
+        if (aimingPlane(client)) flags |= FlightControls.AIM_MODE;
         if (remote() && detonateClick) flags |= FlightControls.DETONATE;
         clear(client.options.keyAttack);
         clear(client.options.keyUse);
@@ -131,7 +138,7 @@ public class PotuzhnoLitClient implements ClientModInitializer {
 
     private static void send(Minecraft client, int flags) {
         if (client.player != null && ClientPlayNetworking.canSend(ControlPayload.TYPE))
-            ClientPlayNetworking.send(new ControlPayload(flags, client.player.getYRot(), client.player.getXRot()));
+            ClientPlayNetworking.send(new ControlPayload(flags, FlightCamera.yaw(client), FlightCamera.pitch(client)));
     }
     private static void beginView(Minecraft client, DroneViewPayload payload) {
         endView(client);
@@ -157,12 +164,11 @@ public class PotuzhnoLitClient implements ClientModInitializer {
             camera = new FlyingMachineEntity(PotuzhnoLitMod.MACHINE, client.level);
             camera.noPhysics = true;
         }
-        // Proxy supports chunk/audio tracking; FlightCameraMixin supplies the per-frame view.
         camera.xOld = camera.xo = camera.getX();
         camera.yOld = camera.yo = camera.getY();
         camera.zOld = camera.zo = camera.getZ();
         camera.yRotO = camera.getYRot(); camera.xRotO = camera.getXRot();
-        float yaw = client.player.getYRot(), pitch = Math.clamp(client.player.getXRot(), -85f, 85f);
+        float yaw = FlightCamera.yaw(client), pitch = FlightCamera.pitch(client);
         camera.setPos(drone.getX(), drone.getY() + .65, drone.getZ());
         camera.setYRot(yaw); camera.setXRot(pitch);
         if (firstFrame) {
