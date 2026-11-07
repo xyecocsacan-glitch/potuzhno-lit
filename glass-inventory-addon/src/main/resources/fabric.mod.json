@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "potuzhnoinventorycamera",
+  "version": "1.0.0",
+  "name": "Potuzhno Glass Inventory Camera",
+  "description": "Shows your character in third person behind the transparent inventory, restoring the original camera when it closes.",
+  "authors": ["Potuzhno"],
+  "environment": "client",
+  "entrypoints": {
+    "client": ["ru.potuzhno.inventory.GlassInventoryClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
