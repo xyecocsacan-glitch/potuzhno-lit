@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "ru.potuzhno.cinema.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["CinemaCameraMixin"],
+  "injectors": {"defaultRequire": 1}
+}
