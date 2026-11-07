@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "potuzhnocinema",
+  "version": "1.0.0",
+  "name": "Потужно Кино — Cutscenes",
+  "description": "Independent cinematic camera, subtitles and skip controls for Minecraft 1.21.11.",
+  "authors": ["Potuzhno"],
+  "environment": "client",
+  "entrypoints": {
+    "client": ["ru.potuzhno.cinema.CinemaClient"]
+  },
+  "mixins": [{"config": "potuzhnocinema.mixins.json", "environment": "client"}],
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
