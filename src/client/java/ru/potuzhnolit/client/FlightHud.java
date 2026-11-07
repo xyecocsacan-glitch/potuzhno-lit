@@ -18,6 +18,14 @@ public final class FlightHud {
         if (machine == null || client.screen != null || client.options.hideGui) return;
         int width = graphics.guiWidth(), height = graphics.guiHeight();
         boolean remote = PotuzhnoLitClient.remote();
+        if (TakeoffCutscene.active()) {
+            graphics.fill(0, 0, width, 29, 0xDD000000);
+            graphics.fill(0, height - 50, width, height, 0xDD000000);
+            centered(graphics, client, TakeoffCutscene.caption(), width, height - 31, 0xFFFFD5A0);
+            centered(graphics, client, Component.translatable("cutscene.potuzhnolit.skip"),
+                width, height - 16, 0xFFE0E0E0);
+            return;
+        }
         if (remote) {
             if (PotuzhnoLitClient.noiseEnabled) drawNoise(graphics, width, height);
             drawFrame(graphics, width, height);

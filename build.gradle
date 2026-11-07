@@ -2,7 +2,7 @@ plugins {
     id 'net.fabricmc.fabric-loom-remap' version '1.14.10'
     id 'maven-publish'
 }
-version = '0.7.1'
+version = '0.8.0'
 group = 'ru.potuzhnolit'
 base { archivesName = 'potuzhno-lit-1.21.11' }
 loom {

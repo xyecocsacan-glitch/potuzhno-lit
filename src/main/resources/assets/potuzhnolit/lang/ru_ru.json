@@ -15,5 +15,11 @@
   "hud.potuzhnolit.flight_keys": "WASD | вверх: %s | вниз: %s / ↓ | выход: %s",
   "hud.potuzhnolit.drone_keys": "Подрыв: %s | ТВ-помехи: %s",
   "hud.potuzhnolit.plane_keys": "Прицел: удерживать ПКМ | пулемёты: ЛКМ / %s",
-  "hud.potuzhnolit.aim_active": "СВОБОДНЫЙ ПРИЦЕЛ"
+  "hud.potuzhnolit.aim_active": "СВОБОДНЫЙ ПРИЦЕЛ",
+  "key.potuzhnolit.cinematic": "Повторить катсцену взлёта",
+  "cutscene.potuzhnolit.engine": "Запуск двигателя...",
+  "cutscene.potuzhnolit.prepare": "Пропеллер раскручивается. Приготовиться к взлёту!",
+  "cutscene.potuzhnolit.takeoff": "ПОТУЖНО ЛІТ — ВЗЛЁТ!",
+  "cutscene.potuzhnolit.controls": "Управление передано пилоту",
+  "cutscene.potuzhnolit.skip": "Esc — пропустить   |   K — повторить"
 }

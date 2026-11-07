@@ -22,7 +22,7 @@ import ru.potuzhnolit.FlyingMachineEntity;
 import ru.potuzhnolit.PotuzhnoLitMod;
 
 public class PotuzhnoLitClient implements ClientModInitializer {
-    public static KeyMapping DOWN, GUN, INTERACT, DETONATE, EFFECTS;
+    public static KeyMapping DOWN, GUN, INTERACT, DETONATE, EFFECTS, CINEMATIC;
     public static boolean noiseEnabled = true;
     private static int droneId = -1, missingTicks, remoteTicks;
     private static FlyingMachineEntity camera;
@@ -30,7 +30,8 @@ public class PotuzhnoLitClient implements ClientModInitializer {
     private static CameraType previousCameraType;
     private static Vec3 bodyAnchor;
     private static boolean previousNoGravity;
-    private static boolean wasInteract, wasDetonate, wasEffects;
+    private static boolean wasInteract, wasDetonate, wasEffects, wasReplay;
+    private static FlyingMachineEntity previousPlane;
 
     @Override public void onInitializeClient() {
         EntityRendererRegistry.register(PotuzhnoLitMod.MACHINE, MachineRenderer::new);
@@ -39,6 +40,7 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         GUN = binding("fire", GLFW.GLFW_KEY_R);
         DETONATE = binding("detonate", GLFW.GLFW_KEY_G);
         EFFECTS = binding("effects", GLFW.GLFW_KEY_V);
+        CINEMATIC = binding("cinematic", GLFW.GLFW_KEY_K);
         ClientPlayNetworking.registerGlobalReceiver(DroneViewPayload.TYPE, (payload, context) ->
             context.client().execute(() -> beginView(context.client(), payload)));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> endView(client));
@@ -78,7 +80,9 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         if (client.player == null || client.level == null || client.getConnection() == null
                 || !ClientPlayNetworking.canSend(ControlPayload.TYPE)) {
             endView(client);
-            wasInteract = wasDetonate = wasEffects = false;
+            TakeoffCutscene.stop();
+            previousPlane = null;
+            wasInteract = wasDetonate = wasEffects = wasReplay = false;
             return;
         }
         boolean interact = held(INTERACT), detonate = held(DETONATE), effects = held(EFFECTS);
@@ -87,6 +91,13 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         boolean effectsClick = effects && !wasEffects;
         wasInteract = interact; wasDetonate = detonate; wasEffects = effects;
         FlyingMachineEntity machine = activeMachine(client);
+        boolean plane = !remote() && machine != null && machine.getVariant() == 1;
+        TakeoffCutscene.step(client, key(GLFW.GLFW_KEY_ESCAPE));
+        boolean replay = held(CINEMATIC);
+        boolean replayClick = replay && !wasReplay;
+        wasReplay = replay;
+        if (plane && (machine != previousPlane || replayClick)) TakeoffCutscene.start(client, machine);
+        previousPlane = plane ? machine : null;
         if (client.screen != null || !client.isWindowActive()) {
             if (remote()) { send(client, FlightControls.EXIT); endView(client); }
             else if (machine != null) send(client, 0);
@@ -114,6 +125,13 @@ public class PotuzhnoLitClient implements ClientModInitializer {
         }
         missingTicks = 0;
         if (machine == null) return;
+        if (TakeoffCutscene.active()) {
+            clear(client.options.keyAttack);
+            clear(client.options.keyUse);
+            clear(client.options.keyInventory);
+            send(client, TakeoffCutscene.flightFlags());
+            return;
+        }
         if (effectsClick) noiseEnabled = !noiseEnabled;
         int flags = 0;
         if (held(client.options.keyUp)) flags |= FlightControls.FORWARD;
@@ -138,7 +156,10 @@ public class PotuzhnoLitClient implements ClientModInitializer {
 
     private static void send(Minecraft client, int flags) {
         if (client.player != null && ClientPlayNetworking.canSend(ControlPayload.TYPE))
-            ClientPlayNetworking.send(new ControlPayload(flags, FlightCamera.yaw(client), FlightCamera.pitch(client)));
+            ClientPlayNetworking.send(new ControlPayload(flags,
+                TakeoffCutscene.active() && !remote() && client.player.getVehicle() instanceof FlyingMachineEntity plane
+                    ? TakeoffCutscene.heading(plane) : FlightCamera.yaw(client),
+                TakeoffCutscene.active() ? 0 : FlightCamera.pitch(client)));
     }
     private static void beginView(Minecraft client, DroneViewPayload payload) {
         endView(client);
