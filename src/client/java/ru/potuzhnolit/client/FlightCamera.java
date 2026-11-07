@@ -71,6 +71,8 @@ public final class FlightCamera {
         if (machine == null) return null;
         boolean drone = PotuzhnoLitClient.remote();
         if (!drone && (machine.getVariant() != 1 || client.getCameraEntity() != client.player)) return null;
+        FlightCamera.Pose cutscene = TakeoffCutscene.pose(machine, partialTick);
+        if (cutscene != null) return cutscene;
         // Orbit the raised aircraft camera with the aim, not the delayed hull angle.
         Vec3 position = FlightGeometry.cameraPosition(machine, machine.getPosition(partialTick), AIM.yaw(), drone);
         return new Pose(position, AIM.yaw(), AIM.pitch());

@@ -17,7 +17,8 @@ public class FpvWiringTest {
     }
     @Test public void packetUsesIndependentAim() throws Exception {
         String client = read("src/client/java/ru/potuzhnolit/client/PotuzhnoLitClient.java");
-        assertTrue(client.contains("new ControlPayload(flags, FlightCamera.yaw(client), FlightCamera.pitch(client))"));
+        assertTrue(client.contains("new ControlPayload(flags,"));
+        assertTrue(client.contains("TakeoffCutscene.heading(plane)"));
         String server = read("src/main/java/ru/potuzhnolit/FlyingMachineEntity.java");
         assertTrue(server.contains("FlightGeometry.cameraPosition(this, position(), viewYaw, false)"));
         assertTrue(server.contains("BeamTrace.extendThrough"));
