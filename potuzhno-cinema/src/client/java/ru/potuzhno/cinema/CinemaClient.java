@@ -42,7 +42,7 @@ public final class CinemaClient implements ClientModInitializer {
 
     private static void start(Minecraft client) {
         if (client.player == null || client.level == null || client.screen != null
-                || client.player.isPassenger()) return;
+                || client.player.isPassenger() || client.getCameraEntity() != client.player) return;
         anchor = client.player.position();
         heading = client.player.getYRot();
         world = client.level;
@@ -70,7 +70,7 @@ public final class CinemaClient implements ClientModInitializer {
             else start(client);
         }
         if (!running) return;
-        if (client.level != world || !client.player.isAlive() || client.player.isPassenger()) { stop(); return; }
+        if (client.level != world || !client.player.isAlive() || client.player.isPassenger() || client.getCameraEntity() != client.player) { stop(); return; }
         long window = GLFW.glfwGetCurrentContext();
         boolean esc = window != 0 && GLFW.glfwGetKey(window, GLFW.GLFW_KEY_ESCAPE) == GLFW.GLFW_PRESS;
         if (esc && !escapeHeldLast) { stop(); return; }
